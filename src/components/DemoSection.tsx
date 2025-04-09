@@ -1,7 +1,9 @@
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Upload, Camera, Image as ImageIcon, AlertTriangle } from 'lucide-react';
+import { toast } from "sonner";
+import { supabase } from '@/integrations/supabase/client';
 
 const DemoSection: React.FC = () => {
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -12,10 +14,16 @@ const DemoSection: React.FC = () => {
     confidence: number;
     areas: string[];
   } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0] || null;
     if (file) {
+      if (!file.type.startsWith('image/')) {
+        toast.error("Please select an image file");
+        return;
+      }
+      
       setImageFile(file);
       const reader = new FileReader();
       reader.onload = (e) => {
@@ -23,23 +31,54 @@ const DemoSection: React.FC = () => {
       };
       reader.readAsDataURL(file);
       setResult(null);
+      toast.success("Image uploaded successfully!");
     }
   };
 
-  const handleAnalyze = () => {
-    if (!imagePreview) return;
+  const handleCameraCapture = () => {
+    toast.info("Camera functionality coming soon");
+  };
+
+  const handleUploadClick = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
+  };
+
+  const handleAnalyze = async () => {
+    if (!imagePreview) {
+      toast.error("Please upload an image first");
+      return;
+    }
     
     setIsAnalyzing(true);
     
-    // Simulate AI analysis
-    setTimeout(() => {
+    try {
+      // Simulate connecting to Supabase
+      const { error } = await supabase.from('image_analysis_logs').insert({
+        analyzed_at: new Date().toISOString(),
+        source_type: 'upload'
+      }).single();
+      
+      if (error) {
+        console.error("Supabase error:", error);
+      }
+      
+      // Simulate AI analysis (for demo purposes)
+      setTimeout(() => {
+        setIsAnalyzing(false);
+        setResult({
+          isAI: Math.random() > 0.5, // Random result for demo
+          confidence: 70 + Math.floor(Math.random() * 25),
+          areas: ['Face features', 'Background inconsistency', 'Lighting artifacts']
+        });
+        toast.success("Analysis complete!");
+      }, 2000);
+    } catch (error) {
+      console.error("Analysis error:", error);
       setIsAnalyzing(false);
-      setResult({
-        isAI: Math.random() > 0.5, // Random result for demo
-        confidence: 70 + Math.floor(Math.random() * 25),
-        areas: ['Face features', 'Background inconsistency', 'Lighting artifacts']
-      });
-    }, 2000);
+      toast.error("There was an error analyzing the image");
+    }
   };
 
   return (
@@ -56,17 +95,18 @@ const DemoSection: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div>
               <div 
-                className="h-80 border-2 border-dashed border-white/20 rounded-lg flex items-center justify-center overflow-hidden"
+                className="h-80 border-2 border-dashed border-white/20 rounded-lg flex items-center justify-center overflow-hidden cursor-pointer"
                 style={{
                   backgroundImage: imagePreview ? `url(${imagePreview})` : 'none',
                   backgroundSize: 'cover',
                   backgroundPosition: 'center'
                 }}
+                onClick={handleUploadClick}
               >
                 {!imagePreview && (
                   <div className="text-center p-4">
                     <ImageIcon className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-                    <p className="text-muted-foreground">Upload an image to analyze</p>
+                    <p className="text-muted-foreground">Click here to upload an image</p>
                   </div>
                 )}
               </div>
@@ -74,7 +114,7 @@ const DemoSection: React.FC = () => {
               <div className="mt-4 flex gap-3">
                 <Button
                   className="bg-neon-purple hover:bg-neon-purple/80 transition-colors flex-1 gap-2"
-                  onClick={() => document.getElementById('image-upload')?.click()}
+                  onClick={handleUploadClick}
                 >
                   <Upload size={18} />
                   Select Image
@@ -82,6 +122,7 @@ const DemoSection: React.FC = () => {
                 <input
                   type="file"
                   id="image-upload"
+                  ref={fileInputRef}
                   accept="image/*"
                   className="hidden"
                   onChange={handleFileChange}
@@ -90,6 +131,7 @@ const DemoSection: React.FC = () => {
                 <Button 
                   variant="outline" 
                   className="border-neon-blue text-neon-blue hover:bg-neon-blue/10 flex-1 gap-2"
+                  onClick={handleCameraCapture}
                 >
                   <Camera size={18} />
                   Use Camera

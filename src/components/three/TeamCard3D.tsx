@@ -26,6 +26,8 @@ const TeamCard3D: React.FC<TeamCardProps> = ({ name, id, role, position, animati
     } else if (animation === 'pulse') {
       const scale = 1 + Math.sin(clock.getElapsedTime() * 2) * 0.05;
       meshRef.current.scale.set(scale, scale, scale);
+    } else if (animation === 'hover') {
+      meshRef.current.rotation.x = Math.sin(clock.getElapsedTime() * 0.5) * 0.1;
     }
     
     if (hovered) {
@@ -40,7 +42,7 @@ const TeamCard3D: React.FC<TeamCardProps> = ({ name, id, role, position, animati
         onPointerOver={() => setHovered(true)}
         onPointerOut={() => setHovered(false)}
       >
-        <boxGeometry args={[1.5, 2, 0.1]} />
+        <boxGeometry args={[1.8, 2.2, 0.1]} />
         <meshStandardMaterial 
           color={hovered ? "#8B5CF6" : "#1E1E2E"} 
           roughness={0.3}
@@ -50,13 +52,14 @@ const TeamCard3D: React.FC<TeamCardProps> = ({ name, id, role, position, animati
         />
         
         <Text
-          position={[0, 0.6, 0.06]}
+          position={[0, 0.7, 0.06]}
           fontSize={0.12}
           color="#FFFFFF"
           anchorX="center"
           anchorY="middle"
-          maxWidth={1.3}
+          maxWidth={1.6}
           textAlign="center"
+          font="/fonts/NotoSansArabic-Bold.ttf"
         >
           {name}
         </Text>
@@ -67,6 +70,7 @@ const TeamCard3D: React.FC<TeamCardProps> = ({ name, id, role, position, animati
           color="#8B5CF6"
           anchorX="center"
           anchorY="middle"
+          font="/fonts/NotoSansArabic-Medium.ttf"
         >
           ID: {id}
         </Text>
@@ -77,6 +81,9 @@ const TeamCard3D: React.FC<TeamCardProps> = ({ name, id, role, position, animati
           color="#CCCCCC"
           anchorX="center"
           anchorY="middle"
+          maxWidth={1.6}
+          textAlign="center"
+          font="/fonts/NotoSansArabic-Regular.ttf"
         >
           {role}
         </Text>
