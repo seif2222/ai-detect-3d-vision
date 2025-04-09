@@ -54,24 +54,39 @@ const DemoSection: React.FC = () => {
     setIsAnalyzing(true);
     
     try {
-      // Simulate connecting to Supabase
-      const { error } = await supabase.from('image_analysis_logs').insert({
-        analyzed_at: new Date().toISOString(),
-        source_type: 'upload'
-      }).single();
-      
-      if (error) {
-        console.error("Supabase error:", error);
-      }
+      // Log the analysis attempt to Supabase
+      await supabase
+        .from('image_analysis_logs')
+        .insert({
+          analyzed_at: new Date().toISOString(),
+          source_type: 'upload'
+        });
       
       // Simulate AI analysis (for demo purposes)
       setTimeout(() => {
+        const isAIGenerated = Math.random() > 0.5; // Random result for demo
+        const confidenceScore = 70 + Math.floor(Math.random() * 25);
+        
+        // Update the analysis result
         setIsAnalyzing(false);
         setResult({
-          isAI: Math.random() > 0.5, // Random result for demo
-          confidence: 70 + Math.floor(Math.random() * 25),
+          isAI: isAIGenerated,
+          confidence: confidenceScore,
           areas: ['Face features', 'Background inconsistency', 'Lighting artifacts']
         });
+        
+        // Also log the result to Supabase
+        supabase
+          .from('image_analysis_logs')
+          .update({
+            is_ai: isAIGenerated,
+            confidence: confidenceScore
+          })
+          .eq('analyzed_at', new Date().toISOString())
+          .then(({ error }) => {
+            if (error) console.error("Error updating analysis result:", error);
+          });
+        
         toast.success("Analysis complete!");
       }, 2000);
     } catch (error) {
