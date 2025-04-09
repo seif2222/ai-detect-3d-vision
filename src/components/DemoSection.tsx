@@ -1,9 +1,19 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Upload, Camera, Image as ImageIcon, AlertTriangle, Wifi } from 'lucide-react';
+import { Upload, Camera, Image as ImageIcon, AlertTriangle, Wifi, ChevronDown } from 'lucide-react';
 import { toast } from "sonner";
 import { supabase } from '@/integrations/supabase/client';
+import { 
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+
+interface CameraDevice {
+  deviceId: string;
+  label: string;
+}
 
 const DemoSection: React.FC = () => {
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -11,6 +21,8 @@ const DemoSection: React.FC = () => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isConnectingCamera, setIsConnectingCamera] = useState(false);
   const [cameraConnected, setCameraConnected] = useState(false);
+  const [availableCameras, setAvailableCameras] = useState<CameraDevice[]>([]);
+  const [selectedCamera, setSelectedCamera] = useState<CameraDevice | null>(null);
   const [result, setResult] = useState<{
     isAI: boolean;
     confidence: number;
@@ -24,8 +36,56 @@ const DemoSection: React.FC = () => {
     const savedCameraStatus = localStorage.getItem('cameraConnected');
     if (savedCameraStatus === 'true') {
       setCameraConnected(true);
+      
+      // Load saved camera if available
+      const savedCamera = localStorage.getItem('selectedCamera');
+      if (savedCamera) {
+        setSelectedCamera(JSON.parse(savedCamera));
+      }
     }
+    
+    // Get available cameras
+    listAvailableCameras();
   }, []);
+  
+  const listAvailableCameras = async () => {
+    try {
+      // Check if browser supports mediaDevices API
+      if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
+        toast.error("Your browser doesn't support camera access");
+        return;
+      }
+      
+      // Request camera permissions first
+      await navigator.mediaDevices.getUserMedia({ video: true });
+      
+      // Get all media devices
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      
+      // Filter for video input devices (cameras)
+      const cameras = devices
+        .filter(device => device.kind === 'videoinput')
+        .map(device => ({
+          deviceId: device.deviceId,
+          label: device.label || `Camera ${device.deviceId.slice(0, 5)}...`
+        }));
+      
+      setAvailableCameras(cameras);
+      
+      // If we have cameras and none selected, select the first one
+      if (cameras.length > 0 && !selectedCamera) {
+        const savedCamera = localStorage.getItem('selectedCamera');
+        if (savedCamera) {
+          setSelectedCamera(JSON.parse(savedCamera));
+        } else {
+          setSelectedCamera(cameras[0]);
+        }
+      }
+    } catch (error) {
+      console.error("Error listing cameras:", error);
+      toast.error("Failed to list available cameras");
+    }
+  };
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0] || null;
@@ -47,9 +107,21 @@ const DemoSection: React.FC = () => {
   };
 
   const connectToWifiCamera = async () => {
+    if (!selectedCamera) {
+      toast.error("Please select a camera first");
+      return;
+    }
+    
     setIsConnectingCamera(true);
     
     try {
+      // Request access to the specific camera
+      await navigator.mediaDevices.getUserMedia({
+        video: {
+          deviceId: { exact: selectedCamera.deviceId }
+        }
+      });
+      
       // Log the connection attempt to Supabase
       await supabase
         .from('image_analysis_logs')
@@ -58,13 +130,16 @@ const DemoSection: React.FC = () => {
           source_type: 'wifi-camera'
         });
       
-      // Simulate Wi-Fi camera connection process
-      setTimeout(() => {
-        setCameraConnected(true);
-        setIsConnectingCamera(false);
-        localStorage.setItem('cameraConnected', 'true');
-        toast.success("Camera connected successfully!");
-      }, 2000);
+      // Save the camera selection and connection status
+      localStorage.setItem('selectedCamera', JSON.stringify(selectedCamera));
+      localStorage.setItem('cameraConnected', 'true');
+      
+      // Dispatch event for Navbar to update
+      window.dispatchEvent(new Event('cameraStatusChanged'));
+      
+      setCameraConnected(true);
+      setIsConnectingCamera(false);
+      toast.success(`Connected to ${selectedCamera.label}`);
     } catch (error) {
       console.error("Camera connection error:", error);
       setIsConnectingCamera(false);
@@ -75,6 +150,10 @@ const DemoSection: React.FC = () => {
   const disconnectCamera = () => {
     setCameraConnected(false);
     localStorage.removeItem('cameraConnected');
+    
+    // Dispatch event for Navbar to update
+    window.dispatchEvent(new Event('cameraStatusChanged'));
+    
     toast.info("Camera disconnected");
   };
 
@@ -154,6 +233,16 @@ const DemoSection: React.FC = () => {
     }
   };
 
+  const handleCameraSelection = (camera: CameraDevice) => {
+    setSelectedCamera(camera);
+    localStorage.setItem('selectedCamera', JSON.stringify(camera));
+    
+    // If already connected, disconnect first
+    if (cameraConnected) {
+      disconnectCamera();
+    }
+  };
+
   return (
     <section id="demo" className="py-16">
       <div className="container mx-auto px-4">
@@ -212,23 +301,49 @@ const DemoSection: React.FC = () => {
                 </Button>
                 
                 {!cameraConnected ? (
-                  <Button 
-                    className="bg-neon-green hover:bg-neon-green/80 transition-colors flex-1 gap-2"
-                    onClick={connectToWifiCamera}
-                    disabled={isConnectingCamera}
-                  >
-                    {isConnectingCamera ? (
-                      <>
-                        <div className="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin"></div>
-                        Connecting...
-                      </>
-                    ) : (
-                      <>
-                        <Wifi size={18} />
-                        Connect Wi-Fi Camera
-                      </>
-                    )}
-                  </Button>
+                  <div className="flex-1 flex gap-2">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="outline" className="flex-1 border-neon-green text-neon-green hover:bg-neon-green/10">
+                          {selectedCamera ? selectedCamera.label : "Select Camera"}
+                          <ChevronDown size={16} />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-56">
+                        {availableCameras.length > 0 ? (
+                          availableCameras.map((camera) => (
+                            <DropdownMenuItem 
+                              key={camera.deviceId}
+                              onClick={() => handleCameraSelection(camera)}
+                              className="cursor-pointer"
+                            >
+                              {camera.label}
+                            </DropdownMenuItem>
+                          ))
+                        ) : (
+                          <DropdownMenuItem disabled>No cameras found</DropdownMenuItem>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                    
+                    <Button 
+                      className="bg-neon-green hover:bg-neon-green/80 transition-colors gap-2"
+                      onClick={connectToWifiCamera}
+                      disabled={isConnectingCamera || !selectedCamera}
+                    >
+                      {isConnectingCamera ? (
+                        <>
+                          <div className="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin"></div>
+                          Connecting...
+                        </>
+                      ) : (
+                        <>
+                          <Wifi size={18} />
+                          Connect
+                        </>
+                      )}
+                    </Button>
+                  </div>
                 ) : (
                   <Button 
                     variant="outline"
@@ -244,7 +359,9 @@ const DemoSection: React.FC = () => {
               {cameraConnected && (
                 <div className="mt-3 flex items-center gap-2 text-neon-green">
                   <div className="w-2 h-2 rounded-full bg-neon-green animate-pulse"></div>
-                  <span className="text-sm">Wi-Fi Camera Connected</span>
+                  <span className="text-sm">
+                    {selectedCamera ? `Connected to ${selectedCamera.label}` : "Wi-Fi Camera Connected"}
+                  </span>
                 </div>
               )}
             </div>

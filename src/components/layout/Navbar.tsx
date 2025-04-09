@@ -5,18 +5,37 @@ import { Camera, Globe, Wifi } from 'lucide-react';
 
 const Navbar: React.FC = () => {
   const [cameraConnected, setCameraConnected] = useState(false);
+  const [selectedCamera, setSelectedCamera] = useState<string | null>(null);
 
   useEffect(() => {
     // Check if camera was previously connected
     const savedCameraStatus = localStorage.getItem('cameraConnected');
     if (savedCameraStatus === 'true') {
       setCameraConnected(true);
+      
+      // Get selected camera name if available
+      const savedCamera = localStorage.getItem('selectedCamera');
+      if (savedCamera) {
+        const camera = JSON.parse(savedCamera);
+        setSelectedCamera(camera.label);
+      }
     }
 
     // Listen for camera connection changes
     const handleStorageChange = () => {
       const currentStatus = localStorage.getItem('cameraConnected');
       setCameraConnected(currentStatus === 'true');
+      
+      // Update selected camera when connection changes
+      if (currentStatus === 'true') {
+        const savedCamera = localStorage.getItem('selectedCamera');
+        if (savedCamera) {
+          const camera = JSON.parse(savedCamera);
+          setSelectedCamera(camera.label);
+        }
+      } else {
+        setSelectedCamera(null);
+      }
     };
 
     window.addEventListener('storage', handleStorageChange);
@@ -66,7 +85,7 @@ const Navbar: React.FC = () => {
             {cameraConnected ? (
               <>
                 <Wifi className="h-5 w-5" />
-                Camera Connected
+                {selectedCamera ? `Camera: ${selectedCamera.split(' ')[0]}` : 'Camera Connected'}
               </>
             ) : (
               <>
