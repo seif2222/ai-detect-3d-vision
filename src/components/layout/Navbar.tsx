@@ -1,9 +1,40 @@
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Camera, Globe } from 'lucide-react';
+import { Camera, Globe, Wifi } from 'lucide-react';
 
 const Navbar: React.FC = () => {
+  const [cameraConnected, setCameraConnected] = useState(false);
+
+  useEffect(() => {
+    // Check if camera was previously connected
+    const savedCameraStatus = localStorage.getItem('cameraConnected');
+    if (savedCameraStatus === 'true') {
+      setCameraConnected(true);
+    }
+
+    // Listen for camera connection changes
+    const handleStorageChange = () => {
+      const currentStatus = localStorage.getItem('cameraConnected');
+      setCameraConnected(currentStatus === 'true');
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    
+    // Custom event listener for same-tab updates
+    window.addEventListener('cameraStatusChanged', handleStorageChange);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('cameraStatusChanged', handleStorageChange);
+    };
+  }, []);
+
+  const handleCameraButtonClick = () => {
+    // Scroll to demo section when camera button is clicked
+    document.getElementById('demo')?.scrollIntoView({ behavior: 'smooth' });
+  };
+
   return (
     <header className="w-full glass-morphism sticky top-0 z-50">
       <div className="container mx-auto py-3 px-4 flex justify-between items-center">
@@ -28,8 +59,21 @@ const Navbar: React.FC = () => {
           <Button variant="ghost" size="icon">
             <Globe className="h-5 w-5" />
           </Button>
-          <Button className="bg-neon-purple hover:bg-neon-purple/80 transition-colors">
-            Connect Camera
+          <Button 
+            className={`${cameraConnected ? 'bg-neon-green' : 'bg-neon-purple'} hover:bg-opacity-80 transition-colors gap-2`}
+            onClick={handleCameraButtonClick}
+          >
+            {cameraConnected ? (
+              <>
+                <Wifi className="h-5 w-5" />
+                Camera Connected
+              </>
+            ) : (
+              <>
+                <Camera className="h-5 w-5" />
+                Connect Camera
+              </>
+            )}
           </Button>
         </div>
       </div>

@@ -1,7 +1,7 @@
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Upload, Camera, Image as ImageIcon, AlertTriangle } from 'lucide-react';
+import { Upload, Camera, Image as ImageIcon, AlertTriangle, Wifi } from 'lucide-react';
 import { toast } from "sonner";
 import { supabase } from '@/integrations/supabase/client';
 
@@ -9,12 +9,23 @@ const DemoSection: React.FC = () => {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isConnectingCamera, setIsConnectingCamera] = useState(false);
+  const [cameraConnected, setCameraConnected] = useState(false);
   const [result, setResult] = useState<{
     isAI: boolean;
     confidence: number;
     areas: string[];
   } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    // Check if camera was previously connected
+    const savedCameraStatus = localStorage.getItem('cameraConnected');
+    if (savedCameraStatus === 'true') {
+      setCameraConnected(true);
+    }
+  }, []);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0] || null;
@@ -35,8 +46,55 @@ const DemoSection: React.FC = () => {
     }
   };
 
+  const connectToWifiCamera = async () => {
+    setIsConnectingCamera(true);
+    
+    try {
+      // Log the connection attempt to Supabase
+      await supabase
+        .from('image_analysis_logs')
+        .insert({
+          analyzed_at: new Date().toISOString(),
+          source_type: 'wifi-camera'
+        });
+      
+      // Simulate Wi-Fi camera connection process
+      setTimeout(() => {
+        setCameraConnected(true);
+        setIsConnectingCamera(false);
+        localStorage.setItem('cameraConnected', 'true');
+        toast.success("Camera connected successfully!");
+      }, 2000);
+    } catch (error) {
+      console.error("Camera connection error:", error);
+      setIsConnectingCamera(false);
+      toast.error("Failed to connect to camera");
+    }
+  };
+
+  const disconnectCamera = () => {
+    setCameraConnected(false);
+    localStorage.removeItem('cameraConnected');
+    toast.info("Camera disconnected");
+  };
+
   const handleCameraCapture = () => {
-    toast.info("Camera functionality coming soon");
+    if (!cameraConnected) {
+      toast.error("Please connect to a camera first");
+      return;
+    }
+    
+    // Simulate capturing image from connected camera
+    const dummyImages = [
+      '/placeholder.svg',
+      'https://images.unsplash.com/photo-1575936123452-b67c3203c357',
+      'https://images.unsplash.com/photo-1517841905240-472988babdf9'
+    ];
+    
+    const randomImage = dummyImages[Math.floor(Math.random() * dummyImages.length)];
+    setImagePreview(randomImage);
+    setResult(null);
+    toast.success("Image captured from camera!");
   };
 
   const handleUploadClick = () => {
@@ -126,7 +184,7 @@ const DemoSection: React.FC = () => {
                 )}
               </div>
               
-              <div className="mt-4 flex gap-3">
+              <div className="mt-4 flex flex-wrap gap-3">
                 <Button
                   className="bg-neon-purple hover:bg-neon-purple/80 transition-colors flex-1 gap-2"
                   onClick={handleUploadClick}
@@ -147,11 +205,48 @@ const DemoSection: React.FC = () => {
                   variant="outline" 
                   className="border-neon-blue text-neon-blue hover:bg-neon-blue/10 flex-1 gap-2"
                   onClick={handleCameraCapture}
+                  disabled={!cameraConnected}
                 >
                   <Camera size={18} />
                   Use Camera
                 </Button>
+                
+                {!cameraConnected ? (
+                  <Button 
+                    className="bg-neon-green hover:bg-neon-green/80 transition-colors flex-1 gap-2"
+                    onClick={connectToWifiCamera}
+                    disabled={isConnectingCamera}
+                  >
+                    {isConnectingCamera ? (
+                      <>
+                        <div className="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin"></div>
+                        Connecting...
+                      </>
+                    ) : (
+                      <>
+                        <Wifi size={18} />
+                        Connect Wi-Fi Camera
+                      </>
+                    )}
+                  </Button>
+                ) : (
+                  <Button 
+                    variant="outline"
+                    className="border-red-500 text-red-500 hover:bg-red-500/10 flex-1 gap-2"
+                    onClick={disconnectCamera}
+                  >
+                    <Wifi size={18} />
+                    Disconnect Camera
+                  </Button>
+                )}
               </div>
+              
+              {cameraConnected && (
+                <div className="mt-3 flex items-center gap-2 text-neon-green">
+                  <div className="w-2 h-2 rounded-full bg-neon-green animate-pulse"></div>
+                  <span className="text-sm">Wi-Fi Camera Connected</span>
+                </div>
+              )}
             </div>
             
             <div className="flex flex-col">
